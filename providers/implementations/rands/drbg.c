@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2023 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2011-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -31,7 +31,7 @@
  *
  * The OpenSSL model is to have new and free functions, and that new
  * does all initialization.  That is not the NIST model, which has
- * instantiation and un-instantiate, and re-use within a new/free
+ * instantiation and un-instantiate, and reuse within a new/free
  * lifecycle.  (No doubt this comes from the desire to support hardware
  * DRBG, where allocation of resources on something like an HSM is
  * a much bigger deal than just re-setting an allocated resource.)
@@ -202,6 +202,11 @@ static size_t get_entropy(PROV_DRBG *drbg, unsigned char **pout, int entropy,
         return ossl_crngt_get_entropy(drbg, pout, entropy, min_len, max_len,
                                       prediction_resistance);
 #else
+        /*
+         * In normal use (i.e. OpenSSL's own uses), this is never called.
+         * Outside of the FIPS provider, OpenSSL sets its DRBGs up so that
+         * they always have a parent.  This remains purely for legacy reasons.
+         */
         return ossl_prov_get_entropy(drbg->provctx, pout, entropy, min_len,
                                      max_len);
 #endif

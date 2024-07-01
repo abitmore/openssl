@@ -1,4 +1,4 @@
-# Copyright 2021-2023 The OpenSSL Project Authors. All Rights Reserved.
+# Copyright 2021-2024 The OpenSSL Project Authors. All Rights Reserved.
 #
 # Licensed under the Apache License 2.0 (the "License").  You may not use
 # this file except in compliance with the License.  You can obtain a copy
@@ -69,7 +69,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: config
-      run: CPPFLAGS=-ansi ./config --banner=Configured no-asm no-makedepend enable-buildtest-c++ enable-fips --strict-warnings -D_DEFAULT_SOURCE && perl configdata.pm --dump
+      run: CPPFLAGS='-ansi -D_XOPEN_SOURCE=1 -D_POSIX_C_SOURCE=200809L' ./config --banner=Configured no-asm no-secure-memory no-makedepend enable-buildtest-c++ enable-fips --strict-warnings && perl configdata.pm --dump
     - name: make
       run: make -s -j4
 
@@ -83,7 +83,7 @@ jobs:
       run: sudo locale-gen tr_TR.UTF-8
     - name: config
       # enable-quic is on by default, but we leave it here to check we're testing the explicit enable somewhere
-      run: CC=gcc ./config --banner=Configured enable-fips enable-quic --strict-warnings && perl configdata.pm --dump
+      run: CC=gcc ./config --banner=Configured enable-demos enable-h3demo enable-fips enable-quic --strict-warnings && perl configdata.pm --dump
     - name: make
       run: make -s -j4
     - name: get cpu info
@@ -93,10 +93,10 @@ jobs:
     - name: make test
       run: .github/workflows/make-test
     - name: save artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v3
       with:
         name: "ci@basic-gcc"
-        path: artifacts/
+        path: artifacts.tar.gz
 
   basic_clang:
     runs-on: ${{ github.server_url == 'https://github.com' && 'ubuntu-latest' || 'ubuntu-22.04-self-hosted' }}
@@ -105,7 +105,7 @@ jobs:
     - name: checkout fuzz/corpora submodule
       run: git submodule update --init --depth 1 fuzz/corpora
     - name: config
-      run: CC=clang ./config --banner=Configured no-fips --strict-warnings && perl configdata.pm --dump
+      run: CC=clang ./config --banner=Configured enable-demos enable-h3demo no-fips --strict-warnings && perl configdata.pm --dump
     - name: make
       run: make -s -j4
     - name: get cpu info
@@ -115,10 +115,10 @@ jobs:
     - name: make test
       run: .github/workflows/make-test
     - name: save artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v3
       with:
         name: "ci@basic-clang"
-        path: artifacts/
+        path: artifacts.tar.gz
 
   self-hosted:
     if: github.repository == 'openssl/openssl'
@@ -130,7 +130,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: config
-      run: ./config enable-fips enable-ec_nistp_64_gcc_128 enable-md2 enable-rc5 enable-ssl3 enable-ssl3-method enable-trace
+      run: ./config enable-demos enable-fips enable-ec_nistp_64_gcc_128 enable-md2 enable-rc5 enable-ssl3 enable-ssl3-method enable-trace
     - name: config dump
       run: ./configdata.pm --dump
     - name: make
@@ -140,10 +140,10 @@ jobs:
     - name: make test
       run: .github/workflows/make-test
     - name: save artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v3
       with:
         name: "ci@self-hosted-${{ matrix.os }}"
-        path: artifacts/
+        path: artifacts.tar.gz
 
   minimal:
     runs-on: ${{ github.server_url == 'https://github.com' && 'ubuntu-latest' || 'ubuntu-22.04-self-hosted' }}
@@ -152,7 +152,7 @@ jobs:
     - name: checkout fuzz/corpora submodule
       run: git submodule update --init --depth 1 fuzz/corpora
     - name: config
-      run: ./config --banner=Configured --strict-warnings no-bulk no-pic no-asm -DOPENSSL_NO_SECURE_MEMORY -DOPENSSL_SMALL_FOOTPRINT && perl configdata.pm --dump
+      run: ./config --banner=Configured --strict-warnings enable-demos enable-h3demo no-bulk no-pic no-asm -DOPENSSL_NO_SECURE_MEMORY -DOPENSSL_SMALL_FOOTPRINT && perl configdata.pm --dump
     - name: make
       run: make -j4 # verbose, so no -s here
     - name: get cpu info
@@ -162,11 +162,10 @@ jobs:
     - name: make test
       run: .github/workflows/make-test
     - name: save artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v3
       with:
         name: "ci@minimal"
-        path: artifacts/
-        if-no-files-found: ignore
+        path: artifacts.tar.gz
 
   no-deprecated:
     runs-on: ${{ github.server_url == 'https://github.com' && 'ubuntu-latest' || 'ubuntu-22.04-self-hosted' }}
@@ -175,7 +174,7 @@ jobs:
     - name: checkout fuzz/corpora submodule
       run: git submodule update --init --depth 1 fuzz/corpora
     - name: config
-      run: ./config --banner=Configured --strict-warnings no-deprecated enable-fips && perl configdata.pm --dump
+      run: ./config --banner=Configured --strict-warnings enable-demos enable-h3demo no-deprecated enable-fips && perl configdata.pm --dump
     - name: make
       run: make -s -j4
     - name: get cpu info
@@ -185,10 +184,10 @@ jobs:
     - name: make test
       run: .github/workflows/make-test
     - name: save artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v3
       with:
         name: "ci@no-deprecated"
-        path: artifacts/
+        path: artifacts.tar.gz
 
   no-shared-ubuntu:
     runs-on: ${{ github.server_url == 'https://github.com' && 'ubuntu-latest' || 'ubuntu-22.04-self-hosted' }}
@@ -197,7 +196,7 @@ jobs:
     - name: checkout fuzz/corpora submodule
       run: git submodule update --init --depth 1 fuzz/corpora
     - name: config
-      run: ./config --banner=Configured --strict-warnings no-shared no-fips && perl configdata.pm --dump
+      run: ./config --banner=Configured --strict-warnings enable-demos enable-h3demo no-shared no-fips && perl configdata.pm --dump
     - name: make
       run: make -s -j4
     - name: get cpu info
@@ -207,10 +206,10 @@ jobs:
     - name: make test
       run: .github/workflows/make-test
     - name: save artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v3
       with:
         name: "ci@no-shared-ubuntu"
-        path: artifacts/
+        path: artifacts.tar.gz
 
   no-shared-macos:
     strategy:
@@ -224,7 +223,7 @@ jobs:
     - name: checkout fuzz/corpora submodule
       run: git submodule update --init --depth 1 fuzz/corpora
     - name: config
-      run: ./config --banner=Configured --strict-warnings no-shared no-fips && perl configdata.pm --dump
+      run: ./config --banner=Configured --strict-warnings enable-demos enable-h3demo no-shared no-fips && perl configdata.pm --dump
     - name: make
       run: make -s -j4
     - name: get cpu info
@@ -234,10 +233,10 @@ jobs:
     - name: make test
       run: .github/workflows/make-test
     - name: save artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v3
       with:
         name: "ci@no-shared-${{ matrix.os }}"
-        path: artifacts/
+        path: artifacts.tar.gz
 
   non-caching:
     runs-on: ${{ github.server_url == 'https://github.com' && 'ubuntu-latest' || 'ubuntu-22.04-self-hosted' }}
@@ -250,7 +249,7 @@ jobs:
         sudo cat /proc/sys/vm/mmap_rnd_bits
         sudo sysctl -w vm.mmap_rnd_bits=28
     - name: config
-      run: ./config --banner=Configured --debug enable-asan enable-ubsan no-cached-fetch no-fips no-dtls no-tls1 no-tls1-method no-tls1_1 no-tls1_1-method no-async && perl configdata.pm --dump
+      run: ./config --banner=Configured --debug enable-demos enable-h3demo enable-asan enable-ubsan no-cached-fetch no-fips no-dtls no-tls1 no-tls1-method no-tls1_1 no-tls1_1-method no-async && perl configdata.pm --dump
     - name: make
       run: make -s -j4
     - name: get cpu info
@@ -260,10 +259,10 @@ jobs:
     - name: make test
       run: .github/workflows/make-test OPENSSL_TEST_RAND_ORDER=0 TESTS="-test_fuzz* -test_ssl_* -test_sslapi -test_evp -test_cmp_http -test_verify -test_cms -test_store -test_enc -[01][0-9]"
     - name: save artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v3
       with:
         name: "ci@non-caching"
-        path: artifacts/
+        path: artifacts.tar.gz
 
   address_ub_sanitizer:
     runs-on: ${{ github.server_url == 'https://github.com' && 'ubuntu-latest' || 'ubuntu-22.04-self-hosted' }}
@@ -276,7 +275,7 @@ jobs:
         sudo cat /proc/sys/vm/mmap_rnd_bits
         sudo sysctl -w vm.mmap_rnd_bits=28
     - name: config
-      run: ./config --banner=Configured --debug enable-asan enable-ubsan enable-rc5 enable-md2 enable-ec_nistp_64_gcc_128 enable-fips && perl configdata.pm --dump
+      run: ./config --banner=Configured --debug enable-demos enable-h3demo enable-asan enable-ubsan enable-rc5 enable-md2 enable-ec_nistp_64_gcc_128 enable-fips && perl configdata.pm --dump
     - name: make
       run: make -s -j4
     - name: get cpu info
@@ -286,10 +285,10 @@ jobs:
     - name: make test
       run: .github/workflows/make-test OPENSSL_TEST_RAND_ORDER=0
     - name: save artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v3
       with:
         name: "ci@address_ub_sanitizer"
-        path: artifacts/
+        path: artifacts.tar.gz
 
   fuzz_tests:
     runs-on: ${{ github.server_url == 'https://github.com' && 'ubuntu-latest' || 'ubuntu-22.04-self-hosted' }}
@@ -312,10 +311,10 @@ jobs:
     - name: make test
       run: .github/workflows/make-test OPENSSL_TEST_RAND_ORDER=0 TESTS="test_fuzz*"
     - name: save artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v3
       with:
         name: "ci@fuzz_tests"
-        path: artifacts/
+        path: artifacts.tar.gz
         if-no-files-found: ignore
 
   memory_sanitizer:
@@ -340,10 +339,10 @@ jobs:
     - name: make test
       run: .github/workflows/make-test OPENSSL_TEST_RAND_ORDER=0
     - name: save artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v3
       with:
         name: "ci@memory_sanitizer"
-        path: artifacts/
+        path: artifacts.tar.gz
 
   threads_sanitizer:
     runs-on: ${{ github.server_url == 'https://github.com' && 'ubuntu-latest' || 'ubuntu-22.04-self-hosted' }}
@@ -366,10 +365,10 @@ jobs:
     - name: make test
       run: .github/workflows/make-test V=1 TESTS="test_threads test_internal_provider test_provfetch test_provider test_pbe test_evp_kdf test_pkcs12 test_store test_evp test_quic*"
     - name: save artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v3
       with:
         name: "ci@threads_sanitizer"
-        path: artifacts/
+        path: artifacts.tar.gz
 
   enable_non-default_options:
     runs-on: ${{ github.server_url == 'https://github.com' && 'ubuntu-latest' || 'ubuntu-22.04-self-hosted' }}
@@ -380,7 +379,7 @@ jobs:
     - name: modprobe tls
       run: sudo modprobe tls
     - name: config
-      run: ./config --banner=Configured --strict-warnings no-ec enable-ssl-trace enable-zlib enable-zlib-dynamic enable-crypto-mdebug enable-egd enable-ktls enable-fips no-threads && perl configdata.pm --dump
+      run: ./config --banner=Configured --strict-warnings enable-demos enable-h3demo no-ec enable-ssl-trace enable-zlib enable-zlib-dynamic enable-crypto-mdebug enable-egd enable-ktls enable-fips no-threads && perl configdata.pm --dump
     - name: make
       run: make -s -j4
     - name: get cpu info
@@ -390,10 +389,10 @@ jobs:
     - name: make test
       run: .github/workflows/make-test
     - name: save artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v3
       with:
         name: "ci@enable_non-default_options"
-        path: artifacts/
+        path: artifacts.tar.gz
 
   full_featured:
     runs-on: ${{ github.server_url == 'https://github.com' && 'ubuntu-latest' || 'ubuntu-22.04-self-hosted' }}
@@ -410,7 +409,7 @@ jobs:
     - name: install extra config support
       run: sudo apt-get -y install libsctp-dev abigail-tools libzstd-dev zstd
     - name: config
-      run: ./config --banner=Configured --strict-warnings enable-ktls enable-fips enable-egd enable-ec_nistp_64_gcc_128 enable-md2 enable-rc5 enable-sctp enable-ssl3 enable-ssl3-method enable-trace enable-zlib enable-zstd && perl configdata.pm --dump
+      run: ./config --banner=Configured --strict-warnings enable-demos enable-h3demo enable-ktls enable-fips enable-egd enable-ec_nistp_64_gcc_128 enable-md2 enable-rc5 enable-sctp enable-ssl3 enable-ssl3-method enable-trace enable-zlib enable-zstd && perl configdata.pm --dump
     - name: make
       run: make -s -j4
     - name: get cpu info
@@ -420,10 +419,10 @@ jobs:
     - name: make test
       run: .github/workflows/make-test
     - name: save artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v3
       with:
         name: "ci@full_featured"
-        path: artifacts/
+        path: artifacts.tar.gz
 
   no-legacy:
     runs-on: ${{ github.server_url == 'https://github.com' && 'ubuntu-latest' || 'ubuntu-22.04-self-hosted' }}
@@ -432,7 +431,7 @@ jobs:
     - name: checkout fuzz/corpora submodule
       run: git submodule update --init --depth 1 fuzz/corpora
     - name: config
-      run: ./config --banner=Configured --strict-warnings no-legacy enable-fips && perl configdata.pm --dump
+      run: ./config --banner=Configured --strict-warnings enable-demos enable-h3demo no-legacy enable-fips && perl configdata.pm --dump
     - name: make
       run: make -s -j4
     - name: get cpu info
@@ -442,10 +441,10 @@ jobs:
     - name: make test
       run: .github/workflows/make-test
     - name: save artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v3
       with:
         name: "ci@no-legacy"
-        path: artifacts/
+        path: artifacts.tar.gz
 
   legacy:
     runs-on: ${{ github.server_url == 'https://github.com' && 'ubuntu-latest' || 'ubuntu-22.04-self-hosted' }}
@@ -454,7 +453,7 @@ jobs:
     - name: checkout fuzz/corpora submodule
       run: git submodule update --init --depth 1 fuzz/corpora
     - name: config
-      run: ./config --banner=Configured -Werror --debug no-afalgeng no-shared enable-crypto-mdebug enable-rc5 enable-md2 enable-ssl3 enable-ssl3-method enable-weak-ssl-ciphers enable-zlib enable-ec_nistp_64_gcc_128 no-fips && perl configdata.pm --dump
+      run: ./config --banner=Configured -Werror --debug no-afalgeng enable-demos enable-h3demo no-shared enable-crypto-mdebug enable-rc5 enable-md2 enable-ssl3 enable-ssl3-method enable-weak-ssl-ciphers enable-zlib enable-ec_nistp_64_gcc_128 no-fips && perl configdata.pm --dump
     - name: make
       run: make -s -j4
     - name: get cpu info
@@ -464,10 +463,10 @@ jobs:
     - name: make test
       run: .github/workflows/make-test
     - name: save artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v3
       with:
         name: "ci@legacy"
-        path: artifacts/
+        path: artifacts.tar.gz
 
   # out-of-source-and-install checks multiple things at the same time:
   # - That building, testing and installing works from an out-of-source
@@ -491,7 +490,7 @@ jobs:
         mkdir ./install
     - name: config
       run: |
-        ../source/config --banner=Configured enable-fips enable-quic enable-acvp-tests --strict-warnings --prefix=$(cd ../install; pwd)
+        ../source/config --banner=Configured enable-demos enable-h3demo enable-fips enable-quic enable-acvp-tests --strict-warnings --prefix=$(cd ../install; pwd)
         perl configdata.pm --dump
       working-directory: ./build
     - name: make
@@ -506,10 +505,10 @@ jobs:
       run: ../source/.github/workflows/make-test
       working-directory: ./build
     - name: save artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v3
       with:
         name: "ci@out-of-readonly-source-and-install-ubuntu"
-        path: build/artifacts/
+        path: build/artifacts.tar.gz
     - name: make install
       run: make install
       working-directory: ./build
@@ -536,7 +535,7 @@ jobs:
         mkdir ./install
     - name: config
       run: |
-        ../source/config --banner=Configured enable-fips enable-quic enable-acvp-tests --strict-warnings --prefix=$(cd ../install; pwd)
+        ../source/config --banner=Configured enable-fips enable-demos enable-h3demo enable-quic enable-acvp-tests --strict-warnings --prefix=$(cd ../install; pwd)
         perl configdata.pm --dump
       working-directory: ./build
     - name: make
@@ -551,10 +550,10 @@ jobs:
       run: ../source/.github/workflows/make-test
       working-directory: ./build
     - name: save artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v3
       with:
         name: "ci@out-of-readonly-source-and-install-${{ matrix.os }}"
-        path: build/artifacts/
+        path: build/artifacts.tar.gz
     - name: make install
       run: make install
       working-directory: ./build
@@ -570,7 +569,7 @@ jobs:
         sudo apt-get update
         sudo apt-get -yq install bison gettext keyutils ldap-utils libldap2-dev libkeyutils-dev python3 python3-paste python3-pyrad slapd tcsh python3-virtualenv virtualenv python3-kdcproxy
     - name: install cpanm and Test2::V0 for gost_engine testing
-      uses: perl-actions/install-with-cpanm@v1
+      uses: perl-actions/install-with-cpanm@stable
       with:
         install: Test2::V0
     - name: setup hostname workaround

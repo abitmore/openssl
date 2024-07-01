@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2023 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2016-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -89,6 +89,9 @@ static int test_lock(void)
 {
     CRYPTO_RWLOCK *lock = CRYPTO_THREAD_lock_new();
     int res;
+
+    if (!TEST_ptr(lock))
+        return 0;
 
     res = TEST_true(CRYPTO_THREAD_read_lock(lock))
           && TEST_true(CRYPTO_THREAD_unlock(lock))
@@ -225,6 +228,9 @@ static int _torture_rw(void)
 
     rwtorturelock = CRYPTO_THREAD_lock_new();
     atomiclock = CRYPTO_THREAD_lock_new();
+    if (!TEST_ptr(rwtorturelock) || !TEST_ptr(atomiclock))
+        goto out;
+
     rwwriter1_iterations = 0;
     rwwriter2_iterations = 0;
     rwreader1_iterations = 0;
@@ -257,6 +263,11 @@ static int _torture_rw(void)
     TEST_info("performed %d reads and %d writes over 2 read and 2 write threads in %e seconds",
               rwreader1_iterations + rwreader2_iterations,
               rwwriter1_iterations + rwwriter2_iterations, tottime);
+    if ((rwreader1_iterations + rwreader2_iterations == 0)
+        || (rwwriter1_iterations + rwwriter2_iterations == 0)) {
+        TEST_info("Threads did not iterate\n");
+        goto out;
+    }
     avr = tottime / (rwreader1_iterations + rwreader2_iterations);
     avw = (tottime / (rwwriter1_iterations + rwwriter2_iterations));
     TEST_info("Average read time %e/read", avr);
@@ -405,8 +416,12 @@ static int _torture_rcu(void)
     struct timeval dtime;
     double tottime;
     double avr, avw;
+    int rc = 0;
 
     atomiclock = CRYPTO_THREAD_lock_new();
+    if (!TEST_ptr(atomiclock))
+        goto out;
+
     memset(&writer1, 0, sizeof(thread_t));
     memset(&writer2, 0, sizeof(thread_t));
     memset(&reader1, 0, sizeof(thread_t));
@@ -420,7 +435,9 @@ static int _torture_rcu(void)
     writer2_done = 0;
     rcu_torture_result = 1;
 
-    rcu_lock = ossl_rcu_lock_new(1);
+    rcu_lock = ossl_rcu_lock_new(1, NULL);
+    if (rcu_lock == NULL)
+        goto out;
 
     TEST_info("Staring rcu torture");
     t1 = ossl_time_now();
@@ -432,7 +449,7 @@ static int _torture_rcu(void)
         || !TEST_true(wait_for_thread(writer2))
         || !TEST_true(wait_for_thread(reader1))
         || !TEST_true(wait_for_thread(reader2)))
-        return 0;
+        goto out;
 
     t2 = ossl_time_now();
     dtime = ossl_time_to_timeval(ossl_time_subtract(t2, t1));
@@ -441,17 +458,27 @@ static int _torture_rcu(void)
     TEST_info("performed %d reads and %d writes over 2 read and 2 write threads in %e seconds",
               reader1_iterations + reader2_iterations,
               writer1_iterations + writer2_iterations, tottime);
+    if ((reader1_iterations + reader2_iterations == 0)
+        || (writer1_iterations + writer2_iterations == 0)) {
+        TEST_info("Threads did not iterate\n");
+        goto out;
+    }
     avr = tottime / (reader1_iterations + reader2_iterations);
     avw = tottime / (writer1_iterations + writer2_iterations);
     TEST_info("Average read time %e/read", avr);
     TEST_info("Average write time %e/write", avw);
 
+    if (!TEST_int_eq(rcu_torture_result, 1))
+        goto out;
+
+    rc = 1;
+out:
     ossl_rcu_lock_free(rcu_lock);
     CRYPTO_THREAD_lock_free(atomiclock);
     if (!TEST_int_eq(rcu_torture_result, 1))
         return 0;
 
-    return 1;
+    return rc;
 }
 
 static int torture_rcu_low(void)
@@ -621,6 +648,52 @@ static int test_atomic(void)
 
     ret64 = 0;
     if (!TEST_true(CRYPTO_atomic_load(&val64, &ret64, lock)))
+        goto err;
+
+    if (!TEST_uint_eq((unsigned int)val64, 3)
+            || !TEST_uint_eq((unsigned int)val64, (unsigned int)ret64))
+        goto err;
+
+    ret64 = 0;
+
+    if (CRYPTO_atomic_and(&val64, 5, &ret64, NULL)) {
+        /* This succeeds therefore we're on a platform with lockless atomics */
+        if (!TEST_uint_eq((unsigned int)val64, 1)
+                || !TEST_uint_eq((unsigned int)val64, (unsigned int)ret64))
+            goto err;
+    } else {
+        /* This failed therefore we're on a platform without lockless atomics */
+        if (!TEST_uint_eq((unsigned int)val64, 3)
+                || !TEST_int_eq((unsigned int)ret64, 0))
+            goto err;
+    }
+    val64 = 3;
+    ret64 = 0;
+
+    if (!TEST_true(CRYPTO_atomic_and(&val64, 5, &ret64, lock)))
+        goto err;
+
+    if (!TEST_uint_eq((unsigned int)val64, 1)
+            || !TEST_uint_eq((unsigned int)val64, (unsigned int)ret64))
+        goto err;
+
+    ret64 = 0;
+
+    if (CRYPTO_atomic_add64(&val64, 2, &ret64, NULL)) {
+        /* This succeeds therefore we're on a platform with lockless atomics */
+        if (!TEST_uint_eq((unsigned int)val64, 3)
+                || !TEST_uint_eq((unsigned int)val64, (unsigned int)ret64))
+            goto err;
+    } else {
+        /* This failed therefore we're on a platform without lockless atomics */
+        if (!TEST_uint_eq((unsigned int)val64, 1)
+                || !TEST_int_eq((unsigned int)ret64, 0))
+            goto err;
+    }
+    val64 = 1;
+    ret64 = 0;
+
+    if (!TEST_true(CRYPTO_atomic_add64(&val64, 2, &ret64, lock)))
         goto err;
 
     if (!TEST_uint_eq((unsigned int)val64, 3)
@@ -1049,19 +1122,6 @@ static int test_obj_add(void)
                            1, default_provider);
 }
 
-static void test_lib_ctx_load_config_worker(void)
-{
-    if (!TEST_int_eq(OSSL_LIB_CTX_load_config(multi_libctx, config_file), 1))
-        multi_set_success(0);
-}
-
-static int test_lib_ctx_load_config(void)
-{
-    return thread_run_test(&test_lib_ctx_load_config_worker,
-                           MAXIMUM_THREADS, &test_lib_ctx_load_config_worker,
-                           1, default_provider);
-}
-
 #if !defined(OPENSSL_NO_DGRAM) && !defined(OPENSSL_NO_SOCK)
 static BIO *multi_bio1, *multi_bio2;
 
@@ -1248,7 +1308,6 @@ int setup_tests(void)
 #endif
     ADD_TEST(test_multi_load_unload_provider);
     ADD_TEST(test_obj_add);
-    ADD_TEST(test_lib_ctx_load_config);
 #if !defined(OPENSSL_NO_DGRAM) && !defined(OPENSSL_NO_SOCK)
     ADD_TEST(test_bio_dgram_pair);
 #endif

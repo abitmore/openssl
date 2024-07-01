@@ -1,5 +1,5 @@
 /*
- * Copyright 1995-2023 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1995-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -54,7 +54,7 @@ SSL3_ENC_METHOD const TLSv1_1_enc_data = {
     TLS_MD_SERVER_FINISH_CONST, TLS_MD_SERVER_FINISH_CONST_SIZE,
     tls1_alert_code,
     tls1_export_keying_material,
-    SSL_ENC_FLAG_EXPLICIT_IV,
+    0,
     ssl3_set_handshake_header,
     tls_close_construct_packet,
     ssl3_handshake_write
@@ -69,7 +69,7 @@ SSL3_ENC_METHOD const TLSv1_2_enc_data = {
     TLS_MD_SERVER_FINISH_CONST, TLS_MD_SERVER_FINISH_CONST_SIZE,
     tls1_alert_code,
     tls1_export_keying_material,
-    SSL_ENC_FLAG_EXPLICIT_IV | SSL_ENC_FLAG_SIGALGS | SSL_ENC_FLAG_SHA256_PRF
+    SSL_ENC_FLAG_SIGALGS | SSL_ENC_FLAG_SHA256_PRF
         | SSL_ENC_FLAG_TLS1_2_CIPHERS,
     ssl3_set_handshake_header,
     tls_close_construct_packet,
@@ -3930,6 +3930,8 @@ int SSL_set_tlsext_max_fragment_length(SSL *ssl, uint8_t mode)
 
 uint8_t SSL_SESSION_get_max_fragment_length(const SSL_SESSION *session)
 {
+    if (session->ext.max_fragment_len_mode == TLSEXT_max_fragment_length_UNSPECIFIED)
+        return TLSEXT_max_fragment_length_DISABLED;
     return session->ext.max_fragment_len_mode;
 }
 
